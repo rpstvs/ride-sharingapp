@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"ride-sharing/shared/env"
 )
@@ -17,14 +22,33 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST trip/preview", HandleTripPreview)
+	mux.HandleFunc("/ws/drivers", handleDriversWebsocket)
+	mux.HandleFunc("/ws/riders", handleRidersWebSocket)
 
 	server := &http.Server{
 		Addr:    httpAddr,
 		Handler: mux,
 	}
+	serverErrors := make(chan error, 1)
+	go func() {
+		serverErrors <- server.ListenAndServe()
+	}()
 
-	http.ListenAndServe(httpAddr, nil)
-	if err := server.ListenAndServe(); err != nil {
-		log.Fatalf("http server error %v", err)
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case err := <-serverErrors:
+		log.Printf("Error starting server: %v", err)
+	case sig := <-shutdown:
+		log.Printf("server is shutting down: %v", sig)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Println("couldnt gracefully shutdown")
+		server.Close()
 	}
 }
