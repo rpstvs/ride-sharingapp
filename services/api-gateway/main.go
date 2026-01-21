@@ -21,9 +21,9 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST trip/preview", HandleTripPreview)
+	mux.HandleFunc("POST trip/preview", EnableCors(HandleTripPreview))
 	mux.HandleFunc("/ws/drivers", handleDriversWebsocket)
-	mux.HandleFunc("/ws/riders", handleRidersWebSocket)
+	mux.HandleFunc("/ws/riders", handleRidersWebsocket)
 
 	server := &http.Server{
 		Addr:    httpAddr,
