@@ -79,7 +79,7 @@ func handleDriversWebsocket(w http.ResponseWriter, r *http.Request) {
 		Data: Driver{
 			ID:             userId,
 			Name:           "Cenas",
-			ProfilePicture: util.GetRandomAvatar(),
+			ProfilePicture: util.GetRandomAvatar(2),
 			PackageSlug:    packageSlug,
 		},
 	}
