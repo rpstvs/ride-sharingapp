@@ -48,3 +48,41 @@ func HandleTripPreview(w http.ResponseWriter, r *http.Request) {
 		Error: nil,
 	})
 }
+
+func HandleTripStart(w http.ResponseWriter, r *http.Request) {
+	var tripStartRequest startTripRequest
+
+	err := json.NewDecoder(r.Body).Decode(&tripStartRequest)
+
+	defer r.Body.Close()
+
+	if err != nil {
+		http.Error(w, "error", http.StatusBadRequest)
+		return
+	}
+
+	if tripStartRequest.UserID == "" {
+		http.Error(w, "userid required", http.StatusBadRequest)
+		return
+	}
+
+	if tripStartRequest.RideFareID == "" {
+		http.Error(w, "ridefareid required", http.StatusBadRequest)
+		return
+	}
+
+	tripService, err := grpc_clients.NewTripServiceClient()
+
+	starttrip, err := tripService.Client.StartTrip(r.Context(), tripStartRequest.ToProto())
+
+	if err != nil {
+		http.Error(w, "error starting trip", http.StatusInternalServerError)
+		return
+	}
+
+	resp := contracts.APIResponse{
+		Data: starttrip,
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
