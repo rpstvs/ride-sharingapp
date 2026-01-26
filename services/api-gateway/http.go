@@ -73,6 +73,12 @@ func HandleTripStart(w http.ResponseWriter, r *http.Request) {
 
 	tripService, err := grpc_clients.NewTripServiceClient()
 
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	}
+
+	defer tripService.Close()
+
 	starttrip, err := tripService.Client.StartTrip(r.Context(), tripStartRequest.ToProto())
 
 	if err != nil {

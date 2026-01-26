@@ -3,8 +3,9 @@ package main
 import (
 	"log"
 	"net/http"
+	"ride-sharing/services/api-gateway/grpc_clients"
 	"ride-sharing/shared/contracts"
-	"ride-sharing/shared/util"
+	"ride-sharing/shared/proto/driver"
 
 	"github.com/gorilla/websocket"
 )
@@ -52,6 +53,7 @@ func handleDriversWebsocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defer conn.Close()
+
 	userId := r.URL.Query().Get("userID")
 
 	if userId == "" {
@@ -66,26 +68,41 @@ func handleDriversWebsocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type Driver struct {
-		ID             string `json:"id"`
-		Name           string `json:"name"`
-		ProfilePicture string `json:"profilepicture"`
-		CarPlate       string `json:"carplate"`
-		PackageSlug    string `json:"packageslug"`
+	driverService, err := grpc_clients.NewDriverServiceClient()
+
+	if err != nil {
+		log.Println("no package slug provided")
+		return
+	}
+
+	defer func() {
+		driverService.Client.UnRegisterDriver(r.Context(), &driver.RegisterDriverRequest{
+			ID:          userId,
+			PackageSlug: packageSlug,
+		})
+		driverService.Close()
+
+	}()
+
+	grpcReq := &driver.RegisterDriverRequest{
+		ID:          userId,
+		PackageSlug: packageSlug,
+	}
+
+	resp, err := driverService.Client.RegisterDriver(r.Context(), grpcReq)
+
+	if err != nil {
+		log.Println("no package slug provided")
+		return
 	}
 
 	msg := contracts.WSMessage{
 		Type: "driver.cmd.register",
-		Data: Driver{
-			ID:             userId,
-			Name:           "Cenas",
-			ProfilePicture: util.GetRandomAvatar(2),
-			PackageSlug:    packageSlug,
-		},
+		Data: resp.Driver,
 	}
 
 	if err := conn.WriteJSON(msg); err != nil {
-		log.Println("Error sending message: %v", err)
+		log.Printf("Error sending message: %v", err)
 		return
 	}
 
