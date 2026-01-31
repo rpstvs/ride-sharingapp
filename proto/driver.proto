@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package driver;
+
+option go_package = "shared/proto/driver;driver";
+
+service DriverService{
+  rpc RegisterDriver(RegisterDriverRequest) returns (RegisterDriverResponse);
+  rpc UnRegisterDriver(RegisterDriverRequest) returns (RegisterDriverResponse);
+}
+
+message RegisterDriverRequest {
+  string ID             = 1;
+  string Name           = 2;
+  string ProfilePicture = 3;
+  string CarPlate       = 4;
+  string PackageSlug    = 5;
+}
+
+message RegisterDriverResponse{
+  Driver driver = 1;
+}
+
+message Driver {
+  string   id             = 1 ;
+  string   name           = 2;
+  string   profilePicture = 3;
+  string   carPlate       = 4;
+  string   geoHashPos     = 5;
+  string   PackageSlug    = 6;
+  Location location       = 7;
+}
+
+message Location {
+  double Latitude  = 1;
+  double Longitude = 2;
+}
