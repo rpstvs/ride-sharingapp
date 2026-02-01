@@ -48,6 +48,14 @@ func main() {
 
 	NewgRPCHandler(grpc_server, svc)
 
+	consumer := NewTripEventConsumer(rabbitMQConn)
+
+	go func() {
+		if err := consumer.Listen(); err != nil {
+			log.Fatalf("failed to listen to the messages %v", err)
+		}
+	}()
+
 	log.Printf("Starting grpc server")
 
 	go func() {
