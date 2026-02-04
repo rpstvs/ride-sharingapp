@@ -48,7 +48,7 @@ func main() {
 
 	NewgRPCHandler(grpc_server, svc)
 
-	consumer := NewTripEventConsumer(rabbitMQConn)
+	consumer := NewTripEventConsumer(rabbitMQConn, svc)
 
 	go func() {
 		if err := consumer.Listen(); err != nil {
