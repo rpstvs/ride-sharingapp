@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"math/rand/v2"
 	"ride-sharing/shared/contracts"
 	"ride-sharing/shared/messaging"
 
@@ -24,7 +25,7 @@ func NewTripEventConsumer(rbmq *messaging.RabbitMQ, svc *Service) *TripEventCons
 
 func (c *TripEventConsumer) Listen() error {
 	return c.rabbitmq.ConsumeMessage(messaging.FindAvailableDriversQueue, func(ctx context.Context, msg amqp091.Delivery) error {
-		log.Println("driver received message", msg.Body)
+		//log.Println("driver received message", msg.Body)
 
 		var tripEvent contracts.AmqpMessage
 
@@ -59,7 +60,9 @@ func (c *TripEventConsumer) handleFindandNotifyDrivers(ctx context.Context, payl
 		return nil
 	}
 
-	suitableDriver := suitableDrivers[0]
+	randIndex := rand.IntN(len(suitableDrivers))
+
+	suitableDriver := suitableDrivers[randIndex]
 
 	marshalEvent, err := json.Marshal(payload)
 
@@ -71,7 +74,7 @@ func (c *TripEventConsumer) handleFindandNotifyDrivers(ctx context.Context, payl
 		OwnerID: suitableDriver,
 		Data:    marshalEvent,
 	}); err != nil {
-
+		log.Printf("Error sending message")
 	}
 
 	return nil

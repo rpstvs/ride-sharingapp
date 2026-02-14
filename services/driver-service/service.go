@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	math "math/rand/v2"
 	pb "ride-sharing/shared/proto/driver"
 	"ride-sharing/shared/util"
@@ -36,19 +37,19 @@ func (s *Service) RegisterDriver(driverId string, packageSlug string) (*pb.Drive
 	randomPlate := GenerateRandomPlate()
 	geohash := geohash.Encode(randomRoute[0][0], randomRoute[0][1])
 
-	driver := &pb.Driver{
+	driver2 := &pb.Driver{
 		GeoHashPos:     geohash,
 		Location:       &pb.Location{Latitude: randomRoute[0][0], Longitude: randomRoute[0][1]},
-		Name:           "Lando Norris",
+		Name:           "Lewis Hamilton",
 		Id:             driverId,
 		PackageSlug:    packageSlug,
 		ProfilePicture: randomAvatar,
 		CarPlate:       randomPlate,
 	}
 
-	s.Drivers = append(s.Drivers, &DriverInMap{Driver: driver})
+	s.Drivers = append(s.Drivers, &DriverInMap{Driver: driver2})
 
-	return driver, nil
+	return driver2, nil
 
 }
 
@@ -68,6 +69,7 @@ func (s *Service) FindAvailableDrivers(packageSlug string) []string {
 	drivers := []string{}
 
 	for _, driver := range s.Drivers {
+		log.Println(driver)
 		if driver.Driver.PackageSlug == packageSlug {
 			drivers = append(drivers, driver.Driver.Id)
 		}
@@ -76,6 +78,6 @@ func (s *Service) FindAvailableDrivers(packageSlug string) []string {
 	if len(drivers) == 0 {
 		return []string{}
 	}
-
+	log.Printf("drivers in map %v", drivers)
 	return drivers
 }

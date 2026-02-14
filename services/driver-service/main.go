@@ -9,7 +9,6 @@ import (
 	"ride-sharing/shared/env"
 	"ride-sharing/shared/messaging"
 	"syscall"
-	"time"
 
 	grpcserver "google.golang.org/grpc"
 )
@@ -19,7 +18,7 @@ var GRPC_ADDR = ":9092"
 func main() {
 	svc := NewService()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 
 	defer cancel()
 
@@ -38,7 +37,7 @@ func main() {
 
 	grpc_server := grpcserver.NewServer()
 
-	rabbitMQConn, err := messaging.NewRabbitConnection(env.GetString(env.GetString("RABBITMQ_URI", "amqp://guest:guest@rabbitmq:5672/")))
+	rabbitMQConn, err := messaging.NewRabbitConnection(env.GetString("RABBITMQ_URI", "amqp://guest:guest@rabbitmq:5672/"))
 
 	if err != nil {
 		log.Fatal("failed to connect to rabbitmq ")
@@ -49,7 +48,6 @@ func main() {
 	NewgRPCHandler(grpc_server, svc)
 
 	consumer := NewTripEventConsumer(rabbitMQConn, svc)
-
 	go func() {
 		if err := consumer.Listen(); err != nil {
 			log.Fatalf("failed to listen to the messages %v", err)
@@ -67,5 +65,7 @@ func main() {
 
 	// wait for the shutdown
 	<-ctx.Done()
+	log.Println("Shutting down the server...")
 	grpc_server.GracefulStop()
+
 }
