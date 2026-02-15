@@ -75,6 +75,54 @@ func (r *RabbitMQ) setupExchangesandQueues() error {
 		return err
 	}
 
+	if err := r.DeclareAndBindQueue(
+		DriverTripResponseQueue,
+		[]string{contracts.DriverCmdTripAccept, contracts.DriverCmdTripDecline},
+		TripExchange,
+	); err != nil {
+		return err
+	}
+
+	if err := r.DeclareAndBindQueue(
+		NotifyDriverNoDriversFoundQueue,
+		[]string{contracts.TripEventNoDriversFound},
+		TripExchange,
+	); err != nil {
+		return err
+	}
+
+	if err := r.DeclareAndBindQueue(
+		NotifyDriverAssignedQueue,
+		[]string{contracts.TripEventDriverAssigned},
+		TripExchange,
+	); err != nil {
+		return err
+	}
+
+	if err := r.DeclareAndBindQueue(
+		PaymentTripResponseQueue,
+		[]string{contracts.PaymentCmdCreateSession},
+		TripExchange,
+	); err != nil {
+		return err
+	}
+
+	if err := r.DeclareAndBindQueue(
+		NotifySessionCreatedQueue,
+		[]string{contracts.PaymentEventSessionCreated},
+		TripExchange,
+	); err != nil {
+		return err
+	}
+
+	if err := r.DeclareAndBindQueue(
+		NotifyPaymentSuccessQueue,
+		[]string{contracts.PaymentEventSuccess},
+		TripExchange,
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -157,7 +205,7 @@ func (r *RabbitMQ) ConsumeMessage(queueName string, handler MessageHandler) erro
 
 	go func() {
 		for msg := range msgs {
-			log.Printf("Received a message: %s", msg.Body)
+			//log.Printf("Received a message: %s", msg.Body)
 			if err := handler(ctx, msg); err != nil {
 				log.Printf("ERROR: Failed to handle message: %v. Message body: %s", err, msg.Body)
 
