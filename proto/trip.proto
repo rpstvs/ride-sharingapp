@@ -33,14 +33,14 @@ message Route {
 }
 
 message Geometry {
-  repeated Coordinate coordinate = 1;
+  repeated Coordinate coordinates = 1;
 }
 
 message RideFare {
   string id                = 1;
-  string userid            = 2;
+  string userID            = 2;
   string packageSlug       = 3;
-  double totalPriceinCents = 4;
+  double totalPriceInCents = 4;
 }
 
 message CreateTripRequest {
