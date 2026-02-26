@@ -20,18 +20,16 @@ type RideFareModel struct {
 func (f *RideFareModel) ToProto() *pb.RideFare {
 	return &pb.RideFare{
 		Id:                f.ID.Hex(),
-		Userid:            f.UserID,
+		UserID:            f.UserID,
 		PackageSlug:       f.PackageSlug,
-		TotalPriceinCents: f.TotalPriceInCents,
+		TotalPriceInCents: f.TotalPriceInCents,
 	}
 }
 
 func ToRideFaresProto(fares []*RideFareModel) []*pb.RideFare {
-	res := make([]*pb.RideFare, len(fares))
-
+	var protoFares []*pb.RideFare
 	for _, f := range fares {
-		res = append(res, f.ToProto())
+		protoFares = append(protoFares, f.ToProto())
 	}
-
-	return res
+	return protoFares
 }

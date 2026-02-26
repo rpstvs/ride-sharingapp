@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	tripTypes "ride-sharing/services/trip-service/pkg/types"
+	pbd "ride-sharing/shared/proto/driver"
 	pb "ride-sharing/shared/proto/trip"
 	"ride-sharing/shared/types"
 
@@ -14,7 +15,7 @@ type TripModel struct {
 	UserID   string
 	Status   string
 	RideFare *RideFareModel
-	Driver   pb.TripDriver
+	Driver   *pb.TripDriver
 }
 
 func (t *TripModel) ToProto() *pb.Trip {
@@ -33,6 +34,8 @@ type TripRepository interface {
 	SaveRideFare(ctx context.Context, f *RideFareModel) error
 
 	GetRideFareByID(ctx context.Context, id string) (*RideFareModel, error)
+	GetTripbyId(ctx context.Context, tripId string) (*TripModel, error)
+	UpdateTrip(ctx context.Context, tripid string, status string, driver *pbd.Driver) error
 }
 
 type TripService interface {
@@ -42,4 +45,6 @@ type TripService interface {
 	GenerateTripFares(ctx context.Context, fares []*RideFareModel, userid string, route *tripTypes.OsmrApiResponse) ([]*RideFareModel, error)
 
 	GetAndValidateFare(ctx context.Context, fareId, Userid string) (*RideFareModel, error)
+	GetTripbyId(ctx context.Context, tripId string) (*TripModel, error)
+	UpdateTrip(ctx context.Context, tripid string, status string, driver *pbd.Driver) error
 }

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"ride-sharing/services/trip-service/internal/domain"
 	tripTypes "ride-sharing/services/trip-service/pkg/types"
+	pbd "ride-sharing/shared/proto/driver"
 	"ride-sharing/shared/proto/trip"
 	"ride-sharing/shared/types"
 
@@ -30,7 +32,7 @@ func (s *TripService) CreateTrip(ctx context.Context, fare *domain.RideFareModel
 		UserID:   fare.UserID,
 		Status:   "",
 		RideFare: fare,
-		Driver:   trip.TripDriver{},
+		Driver:   &trip.TripDriver{},
 	}
 
 	trip, err := s.Repository.CreateTrip(ctx, t)
@@ -86,7 +88,7 @@ func (s *TripService) EstimatePackagesPricesWithRoute(route *tripTypes.OsmrApiRe
 func (s *TripService) GenerateTripFares(ctx context.Context, fares []*domain.RideFareModel, userid string, route *tripTypes.OsmrApiResponse) ([]*domain.RideFareModel, error) {
 	ridefares := make([]*domain.RideFareModel, len(fares))
 
-	for _, f := range fares {
+	for i, f := range fares {
 		id := primitive.NewObjectID()
 		fare := &domain.RideFareModel{
 			UserID:            userid,
@@ -99,8 +101,10 @@ func (s *TripService) GenerateTripFares(ctx context.Context, fares []*domain.Rid
 		if err := s.Repository.SaveRideFare(ctx, fare); err != nil {
 			return nil, fmt.Errorf("failed to save trip fare")
 		}
-		ridefares = append(ridefares, fare)
+
+		ridefares[i] = fare
 	}
+	fmt.Println(ridefares)
 	return ridefares, nil
 }
 
@@ -126,15 +130,17 @@ func (s *TripService) GetAndValidateFare(ctx context.Context, fareId, Userid str
 	fare, err := s.Repository.GetRideFareByID(ctx, fareId)
 
 	if err != nil {
-		return &domain.RideFareModel{}, err
+		log.Printf("fares not found %v", err)
+		return nil, err
 	}
 
 	if fare == nil {
+		log.Printf("fares not found %v", err)
 		return nil, fmt.Errorf("fare does not exist")
 	}
 
 	if fare.UserID != Userid {
-		return &domain.RideFareModel{}, fmt.Errorf("userid and fareid mismatch")
+		return nil, fmt.Errorf("userid and fareid mismatch")
 	}
 
 	return fare, nil
@@ -159,4 +165,11 @@ func getBaseFares() []*domain.RideFareModel {
 			TotalPriceInCents: 1000,
 		},
 	}
+}
+
+func (s *TripService) GetTripbyId(ctx context.Context, tripId string) (*domain.TripModel, error) {
+	return s.Repository.GetTripbyId(ctx, tripId)
+}
+func (s *TripService) UpdateTrip(ctx context.Context, tripid string, status string, driver *pbd.Driver) error {
+	return s.Repository.UpdateTrip(ctx, tripid, status, driver)
 }

@@ -31,6 +31,7 @@ func NewgRPCHandler(server *grpc.Server, service domain.TripService, publisher *
 }
 
 func (h *gRPCHandler) PreviewTrip(ctx context.Context, r *pb.PreviewTripRequest) (*pb.PreviewTripResponse, error) {
+
 	pickup := types.Coordinate{
 		Latitude:  r.GetStartLocation().Latitude,
 		Longitude: r.GetStartLocation().Longitude,
@@ -51,7 +52,7 @@ func (h *gRPCHandler) PreviewTrip(ctx context.Context, r *pb.PreviewTripRequest)
 	estimatedFares := h.service.EstimatePackagesPricesWithRoute(response)
 
 	fares, err := h.service.GenerateTripFares(ctx, estimatedFares, r.UserID, response)
-
+	log.Println(fares)
 	if err != nil {
 		return &pb.PreviewTripResponse{}, status.Errorf(codes.Internal, "failed to generate ride fares %v", err)
 	}
@@ -77,7 +78,7 @@ func (h *gRPCHandler) StartTrip(ctx context.Context, r *pb.CreateTripRequest) (*
 		return nil, status.Errorf(codes.Internal, "error creating trip: %v", err)
 	}
 
-	if err := h.publisher.PublishTripCreated(ctx); err != nil {
+	if err := h.publisher.PublishTripCreated(ctx, trip); err != nil {
 		return nil, err
 	}
 
