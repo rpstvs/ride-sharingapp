@@ -34,7 +34,8 @@ func handleRidersWebsocket(w http.ResponseWriter, r *http.Request, rb *messaging
 	defer connManager.Remove(userId)
 
 	queues := []string{messaging.NotifyDriverNoDriversFoundQueue,
-		messaging.NotifyDriverAssignedQueue}
+		messaging.NotifyDriverAssignedQueue,
+		messaging.NotifySessionCreatedQueue}
 
 	for _, q := range queues {
 		consumer := messaging.NewQueueConsumer(rb, connManager, q)
@@ -46,11 +47,12 @@ func handleRidersWebsocket(w http.ResponseWriter, r *http.Request, rb *messaging
 
 	for {
 		_, message, err := conn.ReadMessage()
-
 		if err != nil {
-			log.Printf("Error reading message %v", message)
+			log.Printf("Error reading message: %v", err)
 			break
 		}
+
+		log.Printf("Received message: %s", message)
 
 	}
 
@@ -104,10 +106,11 @@ func handleDriversWebsocket(w http.ResponseWriter, r *http.Request, rb *messagin
 		PackageSlug: packageSlug,
 	}
 
+	log.Println(grpcReq)
 	resp, err := driverService.Client.RegisterDriver(r.Context(), grpcReq)
 
 	if err != nil {
-		log.Println("no package slug provided")
+		log.Printf("Error Registering driver: %v", err)
 		return
 	}
 
@@ -154,7 +157,7 @@ func handleDriversWebsocket(w http.ResponseWriter, r *http.Request, rb *messagin
 		case contracts.DriverCmdLocation:
 			continue
 		case contracts.DriverCmdTripAccept, contracts.DriverCmdTripDecline:
-			if err := rb.PublishMessage(ctx, driverMessage.Type, contracts.AmqpMessage{
+			if err := rb.PublishMessage(r.Context(), driverMessage.Type, contracts.AmqpMessage{
 				OwnerID: userId,
 				Data:    driverMessage.Data,
 			}); err != nil {

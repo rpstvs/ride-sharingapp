@@ -7,10 +7,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"ride-sharing/shared/env"
 	"ride-sharing/shared/messaging"
+	"ride-sharing/shared/tracing"
 )
 
 var (
@@ -23,6 +23,21 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	tracerCfg := tracing.Config{
+		ServiceName:      "api-gateway",
+		Environment:      env.GetString("ENVIRONMENT", "development"),
+		ExporterEndpoint: env.GetString("JAEGER_ENDPOINT", "http://jaeger:14268/api/traces"),
+	}
+
+	shutdownTracer, err := tracing.InitTracer(tracerCfg)
+
+	if err != nil {
+		log.Fatal("error init tracing")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer shutdownTracer(ctx)
+
 	// RabbitMQ connection
 	rabbitmq, err := messaging.NewRabbitConnection(rabbitMqURI)
 	if err != nil {
@@ -32,14 +47,17 @@ func main() {
 
 	log.Println("Starting RabbitMQ connection")
 
-	mux.HandleFunc("POST /trip/preview", EnableCors(HandleTripPreview))
-	mux.HandleFunc("POST /trip/start", EnableCors(HandleTripStart))
-	mux.HandleFunc("/ws/drivers", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("POST /trip/preview", tracing.WrapHandlerFunc(EnableCors(HandleTripPreview), "/trip/preview"))
+	mux.Handle("POST /trip/start", tracing.WrapHandlerFunc(EnableCors(HandleTripStart), "/trip/start"))
+	mux.Handle("/ws/drivers", tracing.WrapHandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleDriversWebsocket(w, r, rabbitmq)
-	})
-	mux.HandleFunc("/ws/riders", func(w http.ResponseWriter, r *http.Request) {
+	}, "/ws/drivers"))
+	mux.Handle("/ws/riders", tracing.WrapHandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleRidersWebsocket(w, r, rabbitmq)
-	})
+	}, "/ws/riders"))
+	mux.Handle("/webhook/stripe", tracing.WrapHandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleStripeWebHook(w, r, rabbitmq)
+	}, "/webhook/stripe"))
 
 	server := &http.Server{
 		Addr:    httpAddr,
@@ -59,9 +77,6 @@ func main() {
 	case sig := <-shutdown:
 		log.Printf("server is shutting down: %v", sig)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
 		log.Println("couldnt gracefully shutdown")
