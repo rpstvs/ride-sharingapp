@@ -1,0 +1,104 @@
+package tracing
+
+import (
+	"context"
+	"encoding/json"
+	"ride-sharing/shared/contracts"
+
+	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+)
+
+type amqpHeadersCarrier amqp.Table
+
+func (c amqpHeadersCarrier) Get(key string) string {
+	if v, ok := c[key]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+func (c amqpHeadersCarrier) Set(key string, value string) {
+	c[key] = value
+
+}
+
+func (c amqpHeadersCarrier) Keys() []string {
+	keys := make([]string, len(c))
+
+	for k, _ := range c {
+		keys = append(keys, k)
+	}
+
+	return keys
+}
+
+func TracedPublisher(ctx context.Context, exchange, routingKey string, msg amqp.Publishing, publish func(context.Context, string, string, amqp.Publishing) error) error {
+	tracer := otel.GetTracerProvider().Tracer("rabbitmq")
+
+	ctx, span := tracer.Start(ctx, "rabbitmq.publish",
+		trace.WithAttributes(
+			attribute.String("messaging.destination", exchange),
+			attribute.String("messaging.routing_key", routingKey),
+		))
+	defer span.End()
+
+	var msgBody contracts.AmqpMessage
+
+	if err := json.Unmarshal(msg.Body, &msgBody); err == nil {
+		if msgBody.OwnerID != "" {
+			span.SetAttributes(attribute.String("messaging.owner_id", msgBody.OwnerID))
+		}
+	}
+
+	if msg.Headers == nil {
+		msg.Headers = make(amqp.Table)
+	}
+
+	carrier := amqpHeadersCarrier(msg.Headers)
+
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	msg.Headers = amqp.Table(carrier)
+
+	if err := publish(ctx, exchange, routingKey, msg); err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func TracedConsumer(deliver amqp.Delivery, handler func(context.Context, amqp.Delivery) error) error {
+	carrier := amqpHeadersCarrier(deliver.Headers)
+	ctx := otel.GetTextMapPropagator().Extract(context.Background(), carrier)
+
+	tracer := otel.GetTracerProvider().Tracer("rabbitmq")
+
+	ctx, span := tracer.Start(ctx, "rabbitmq.consume",
+		trace.WithAttributes(
+			attribute.String("messaging.destination", deliver.Exchange),
+			attribute.String("messaging.routing_key", deliver.RoutingKey),
+		))
+
+	defer span.End()
+
+	var msgBody contracts.AmqpMessage
+
+	if err := json.Unmarshal(deliver.Body, &msgBody); err == nil {
+		if msgBody.OwnerID != "" {
+			span.SetAttributes(attribute.String("messaging.owner_id", msgBody.OwnerID))
+		}
+	}
+
+	if err := handler(ctx, deliver); err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	return nil
+}
