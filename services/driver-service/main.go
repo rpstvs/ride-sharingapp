@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"ride-sharing/shared/env"
 	"ride-sharing/shared/messaging"
+	"ride-sharing/shared/tracing"
 	"syscall"
 
 	grpcserver "google.golang.org/grpc"
@@ -35,7 +36,7 @@ func main() {
 		log.Fatalf("failed to liste: %v", err)
 	}
 
-	grpc_server := grpcserver.NewServer()
+	grpc_server := grpcserver.NewServer(tracing.WithTracingInterceptors()...)
 
 	rabbitMQConn, err := messaging.NewRabbitConnection(env.GetString("RABBITMQ_URI", "amqp://guest:guest@rabbitmq:5672/"))
 
