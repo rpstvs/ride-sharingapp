@@ -40,6 +40,7 @@ func (c *TripConsumer) Listen() error {
 
 		switch msg.RoutingKey {
 		case contracts.PaymentCmdCreateSession:
+			log.Printf("Received message for Creating payment session: %v", payload)
 			return c.handleTripAccepted(ctx, payload)
 		}
 		log.Println("Unknown Trip Event")
@@ -52,12 +53,13 @@ func (c *TripConsumer) handleTripAccepted(ctx context.Context, payload messaging
 	paymentIntent, err := c.service.CreatePaymentSession(ctx, payload.TripID, payload.UserID, payload.DriverID, int64(payload.Amount), payload.Currency)
 
 	if err != nil {
+		log.Printf("error creating payment session: %v", err)
 		return err
 	}
 
 	paymentPayload := messaging.PaymentEventSessionCreatedData{
 		TripID:    payload.TripID,
-		SessionID: paymentIntent.ID,
+		SessionID: paymentIntent.StripeSessionID,
 		Currency:  payload.Currency,
 		Amount:    float64(paymentIntent.Amount) / 100.0,
 	}
@@ -65,6 +67,7 @@ func (c *TripConsumer) handleTripAccepted(ctx context.Context, payload messaging
 	payloadBytes, err := json.Marshal(&paymentPayload)
 
 	if err != nil {
+		log.Printf("error marshalling payment session: %v", err)
 		return err
 	}
 
@@ -72,6 +75,7 @@ func (c *TripConsumer) handleTripAccepted(ctx context.Context, payload messaging
 		OwnerID: payload.UserID,
 		Data:    payloadBytes,
 	}); err != nil {
+		log.Printf("error publishing payment session: %v", err)
 		return err
 	}
 
