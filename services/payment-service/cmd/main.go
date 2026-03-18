@@ -11,6 +11,7 @@ import (
 	types "ride-sharing/services/payment-service/pkg"
 	"ride-sharing/shared/env"
 	"ride-sharing/shared/messaging"
+	"ride-sharing/shared/tracing"
 	"syscall"
 )
 
@@ -20,9 +21,21 @@ func main() {
 
 	rabbitMqURI := env.GetString("RABBITMQ_URI", "amqp://guest:guest@rabbitmq:5672/")
 
+	tracerCfg := tracing.Config{
+		ServiceName:      "driver-service",
+		Environment:      env.GetString("ENVIRONMENT", "development"),
+		ExporterEndpoint: env.GetString("JAEGER_ENDPOINT", "http://jaeger:14268/api/traces"),
+	}
+
+	sh, err := tracing.InitTracer(tracerCfg)
+	if err != nil {
+		log.Fatalf("failed to inialize the tracer")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer cancel()
+	defer sh(ctx)
 
 	go func() {
 		sigCh := make(chan os.Signal, 1)
