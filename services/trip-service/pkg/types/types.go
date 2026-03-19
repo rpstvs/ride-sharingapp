@@ -27,7 +27,7 @@ func (o *OsmrApiResponse) ToProto() *pb.Route {
 	}
 	return &pb.Route{
 		Geometry: []*pb.Geometry{{
-			Coordinate: coordinates,
+			Coordinates: coordinates,
 		},
 		},
 		Distance: route.Distance,
