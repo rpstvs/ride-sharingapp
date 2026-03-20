@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"log"
 	"ride-sharing/shared/contracts"
+	"ride-sharing/shared/retry"
+	"ride-sharing/shared/tracing"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 const (
-	TripExchange = "trip"
+	TripExchange       = "trip"
+	DeadLetterExchange = "DLX"
 )
 
 type RabbitMQ struct {
@@ -43,6 +46,46 @@ func NewRabbitConnection(uri string) (*RabbitMQ, error) {
 	return rmq, nil
 }
 
+func (r *RabbitMQ) setupDeadLetterQueue() error {
+	err := r.Channel.ExchangeDeclare(
+		DeadLetterExchange, // name
+		"topic",            // type
+		true,               // durable
+		false,              // auto-deleted
+		false,              // internal
+		false,              // no-wait
+		nil,                // arguments
+	)
+
+	if err != nil {
+		return err
+	}
+
+	q, err := r.Channel.QueueDeclare(
+		DeadLetterQueue, // name
+		true,            // durable
+		false,           // delete when unused
+		false,           // exclusive
+		false,           // no-wait
+		nil,             // arguments
+	)
+	if err != nil {
+		return err
+	}
+
+	err = r.Channel.QueueBind(
+		q.Name,             // queue name
+		"#",                // routing key
+		DeadLetterExchange, // exchange
+		false,
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (r *RabbitMQ) setupExchangesandQueues() error {
 	err := r.Channel.ExchangeDeclare(
 		TripExchange, // name
@@ -56,6 +99,10 @@ func (r *RabbitMQ) setupExchangesandQueues() error {
 
 	if err != nil {
 		return fmt.Errorf("failed to declare exchange %v", err)
+	}
+
+	if err := r.setupDeadLetterQueue(); err != nil {
+		return err
 	}
 
 	err = r.DeclareAndBindQueue(
@@ -127,13 +174,18 @@ func (r *RabbitMQ) setupExchangesandQueues() error {
 }
 
 func (r *RabbitMQ) DeclareAndBindQueue(queueName string, messagesTypes []string, exchange string) error {
+
+	args := amqp.Table{
+		"x-dead-letter-queue": DeadLetterExchange,
+	}
+
 	q, err := r.Channel.QueueDeclare(
 		queueName, // name
 		true,      // durable
 		false,     // delete when unused
 		false,     // exclusive
 		false,     // no-wait
-		nil,       // arguments
+		args,      // arguments with dead letter exchange config
 	)
 	if err != nil {
 		return err
@@ -159,17 +211,24 @@ func (r *RabbitMQ) PublishMessage(ctx context.Context, routingKey string, messag
 	if err != nil {
 		return fmt.Errorf("failed to marshal message")
 	}
-	return r.Channel.PublishWithContext(ctx,
-		TripExchange, // exchange
-		routingKey,   // routing key
-		false,        // mandatory
-		false,        // immediate
-		amqp.Publishing{
-			ContentType:  "text/plain",
-			Body:         jsonMsg,
-			DeliveryMode: amqp.Persistent,
-		})
+	msg := amqp.Publishing{
+		DeliveryMode: amqp.Persistent,
+		ContentType:  "application/json",
+		Body:         jsonMsg,
+	}
+	return tracing.TracedPublisher(ctx, TripExchange, routingKey, msg, r.publish)
 
+}
+
+func (r *RabbitMQ) publish(ctx context.Context, exchange, routingKey string, msg amqp.Publishing) error {
+	return r.Channel.PublishWithContext(
+		ctx,
+		exchange,
+		routingKey,
+		false,
+		false,
+		msg,
+	)
 }
 
 type MessageHandler func(context.Context, amqp.Delivery) error
@@ -201,21 +260,41 @@ func (r *RabbitMQ) ConsumeMessage(queueName string, handler MessageHandler) erro
 		return err
 	}
 
-	ctx := context.Background()
-
 	go func() {
 		for msg := range msgs {
 			//log.Printf("Received a message: %s", msg.Body)
-			if err := handler(ctx, msg); err != nil {
-				log.Printf("ERROR: Failed to handle message: %v. Message body: %s", err, msg.Body)
+			if err := tracing.TracedConsumer(msg, func(ctx context.Context, d amqp.Delivery) error {
+				cfg := retry.DefaultConfig()
+				err := retry.WithBackoff(ctx, cfg, func() error {
+					return handler(ctx, d)
+				})
 
-				if nackErr := msg.Nack(false, false); err != nil {
-					log.Printf("ERROR: Failed to Nack message: %v", nackErr)
+				if err != nil {
+					log.Printf("message processing failed after %d retries for message id: %s, err: %v", cfg.MaxRetries, d.MessageId, err)
+
+					//add failure context before sending to dlq
+
+					headers := amqp.Table{}
+
+					if d.Headers != nil {
+						headers = d.Headers
+					}
+					headers["x-death-reason"] = err.Error()
+					headers["x-origin-exchange"] = d.Exchange
+					headers["x-original-routing-key"] = d.RoutingKey
+					headers["x-retry-count"] = cfg.MaxRetries
+					d.Headers = headers
+
+					_ = d.Reject(false)
+					return err
 				}
-				continue
-			}
-			if ackError := msg.Ack(false); err != nil {
-				log.Printf("ERROR: Failed to Ack message: %v. Message body: %s", ackError, msg.Body)
+
+				if ackError := msg.Ack(false); err != nil {
+					log.Printf("ERROR: Failed to Ack message: %v. Message body: %s", ackError, msg.Body)
+				}
+				return nil
+			}); err != nil {
+				log.Printf("Error processing message: %v", err)
 			}
 		}
 	}()
