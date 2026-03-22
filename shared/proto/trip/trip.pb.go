@@ -300,9 +300,9 @@ func (x *Geometry) GetCoordinates() []*Coordinate {
 type RideFare struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Userid            string                 `protobuf:"bytes,2,opt,name=userid,proto3" json:"userid,omitempty"`
+	UserID            string                 `protobuf:"bytes,2,opt,name=userID,proto3" json:"userID,omitempty"`
 	PackageSlug       string                 `protobuf:"bytes,3,opt,name=packageSlug,proto3" json:"packageSlug,omitempty"`
-	TotalPriceinCents float64                `protobuf:"fixed64,4,opt,name=totalPriceinCents,proto3" json:"totalPriceinCents,omitempty"`
+	TotalPriceInCents float64                `protobuf:"fixed64,4,opt,name=totalPriceInCents,proto3" json:"totalPriceInCents,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -344,9 +344,9 @@ func (x *RideFare) GetId() string {
 	return ""
 }
 
-func (x *RideFare) GetUserid() string {
+func (x *RideFare) GetUserID() string {
 	if x != nil {
-		return x.Userid
+		return x.UserID
 	}
 	return ""
 }
@@ -358,9 +358,9 @@ func (x *RideFare) GetPackageSlug() string {
 	return ""
 }
 
-func (x *RideFare) GetTotalPriceinCents() float64 {
+func (x *RideFare) GetTotalPriceInCents() float64 {
 	if x != nil {
-		return x.TotalPriceinCents
+		return x.TotalPriceInCents
 	}
 	return 0
 }
@@ -647,9 +647,9 @@ const file_trip_proto_rawDesc = "" +
 	"\vcoordinates\x18\x01 \x03(\v2\x10.trip.CoordinateR\vcoordinates\"\x82\x01\n" +
 	"\bRideFare\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
-	"\x06userid\x18\x02 \x01(\tR\x06userid\x12 \n" +
+	"\x06userID\x18\x02 \x01(\tR\x06userID\x12 \n" +
 	"\vpackageSlug\x18\x03 \x01(\tR\vpackageSlug\x12,\n" +
-	"\x11totalPriceinCents\x18\x04 \x01(\x01R\x11totalPriceinCents\"K\n" +
+	"\x11totalPriceInCents\x18\x04 \x01(\x01R\x11totalPriceInCents\"K\n" +
 	"\x11CreateTripRequest\x12\x1e\n" +
 	"\n" +
 	"rideFareId\x18\x01 \x01(\tR\n" +
